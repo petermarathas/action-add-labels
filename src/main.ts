@@ -20,12 +20,36 @@ async function run(): Promise<void> {
     }
 
     const octokit = github.getOctokit(githubToken);
-    await octokit.rest.issues.addLabels({
+    const githubLabels = (await octokit.rest.issues.addLabels({
       labels,
       owner,
       repo,
       issue_number: number
-    });
+    })).reduce((acc, githubLabel) => ({ ...acc, [githubLabel.name]: githubLabel }));
+
+    const colorsInput = core.getInput('colors');
+    if (colorsInput === '') {
+      return;
+    }
+
+    const colors =
+      colorsInput.include('\n')
+        ? colorsInput.split('\n')
+        : Array(labels.length).fill(colorsInput);
+
+    for (const [i, name] of labels.entries()) {
+      const color = colors[i];
+      if (!color || githubLabels[name].color == color) {
+        continue;
+      }
+
+      await octokit.rest.issues.updateLabel({
+        owner,
+        repo,
+        name,
+        color
+      });
+    }
   } catch (e) {
     if (e instanceof Error) {
       core.error(e);
